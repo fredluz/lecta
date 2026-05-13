@@ -2,6 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'child_process'
 import { app } from 'electron'
 import { createInterface, type Interface } from 'readline'
 import { loadCodexBinPath, loadCodexModel } from './env-loader'
+import { DEFAULT_CODEX_MODEL } from '../../../packages/shared/src/constants'
 
 type JsonRpcId = number
 
@@ -262,13 +263,14 @@ export class CodexAppServerClient {
     system: string
     userMessage: string
     cwd?: string
+    model?: string
     onChunk: (chunk: string) => void
   }): Promise<string> {
     await this.start()
     await this.ensureChatGPTAccount()
 
-    const configuredModel = await loadCodexModel()
-    const model = configuredModel || undefined
+    const configuredModel = params.model || await loadCodexModel()
+    const model = configuredModel || DEFAULT_CODEX_MODEL
     const threadResult = await this.request<CodexThreadStartResponse>('thread/start', {
       ...(model ? { model } : {}),
       cwd: params.cwd || process.cwd(),
@@ -359,14 +361,15 @@ Output only the requested final content. Do not describe your process.`
     prompt: string
     aspectRatio?: string
     cwd?: string
+    model?: string
     imageBase64?: string
     imageMimeType?: string
   }): Promise<CodexImageResult> {
     await this.start()
     await this.ensureChatGPTAccount()
 
-    const configuredModel = await loadCodexModel()
-    const model = configuredModel || undefined
+    const configuredModel = params.model || await loadCodexModel()
+    const model = configuredModel || DEFAULT_CODEX_MODEL
     const threadResult = await this.request<CodexThreadStartResponse>('thread/start', {
       ...(model ? { model } : {}),
       cwd: params.cwd || process.cwd(),

@@ -380,6 +380,7 @@ export class AIService {
       system: params.system,
       userMessage: params.userMessage,
       cwd: currentDeckPath ?? undefined,
+      model: this.model,
       onChunk: params.onChunk,
     })
   }
