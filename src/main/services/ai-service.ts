@@ -5,7 +5,12 @@ import { loadAnthropicKey, loadOpenAIKey, loadGeminiKey, loadAIModel, loadProvid
 import { DEFAULT_AI_MODEL, getProviderForModel, type AIProviderID } from '../../../packages/shared/src/constants'
 import type { PresentationSnapshot, ChatStreamEvent } from '../../../packages/shared/src/types/chat'
 import { getToolSchemas, findTool, type ToolExecutionContext } from './chat-agent-tools'
-import { getCodexAppServerClient } from './codex-app-server-client'
+import {
+  getCodexAppServerClient,
+  type CodexDynamicToolCall,
+  type CodexDynamicToolResponse,
+  type CodexDynamicToolSpec,
+} from './codex-app-server-client'
 
 const SLIDE_7x7_RULE = `
 SLIDE CANVAS: 1280×720px with 80px horizontal / 60px vertical padding.
@@ -375,6 +380,9 @@ export class AIService {
     userMessage: string
     maxTokens: number
     onChunk: (chunk: string) => void
+    dynamicTools?: CodexDynamicToolSpec[]
+    onDynamicToolCall?: (call: CodexDynamicToolCall) => Promise<CodexDynamicToolResponse>
+    finalInstruction?: string | null
   }): Promise<string> {
     return getCodexAppServerClient().streamText({
       system: params.system,
@@ -382,6 +390,9 @@ export class AIService {
       cwd: currentDeckPath ?? undefined,
       model: this.model,
       onChunk: params.onChunk,
+      dynamicTools: params.dynamicTools,
+      onDynamicToolCall: params.onDynamicToolCall,
+      finalInstruction: params.finalInstruction,
     })
   }
 
@@ -1201,6 +1212,12 @@ IMPORTANT RULES FOR HTML IN MARKDOWN:
     const anthropicTools = getToolSchemas()
 
     if (provider === 'openai' && await this.shouldUseCodexForOpenAI()) {
+      const codexDynamicTools: CodexDynamicToolSpec[] = anthropicTools.map((tool) => ({
+        name: tool.name,
+        description: tool.description || '',
+        inputSchema: tool.input_schema,
+      }))
+
       const conversationText = messages
         .map((m) => {
           const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
@@ -1209,12 +1226,31 @@ IMPORTANT RULES FOR HTML IN MARKDOWN:
         .join('\n\n')
 
       const text = await this.streamGenerateWithCodex({
-        system: `${systemPrompt}
-
-Note: this Codex-backed text mode can answer using the presentation context, but Lecta mutation tools are not exposed to Codex yet. If the user asks to directly edit slides, explain that direct editing requires an API-key-backed provider for now.`,
+        system: systemPrompt,
         userMessage: conversationText,
         maxTokens: 4096,
+        dynamicTools: codexDynamicTools,
+        onDynamicToolCall: async (call) => {
+          const toolInput = call.arguments && typeof call.arguments === 'object' && !Array.isArray(call.arguments)
+            ? call.arguments as Record<string, unknown>
+            : {}
+          const { result, isError } = await this.executeToolCall(
+            call.callId,
+            call.tool,
+            toolInput,
+            snapshot,
+            actionMode,
+            onEvent,
+            confirmAction
+          )
+
+          return {
+            contentItems: [{ type: 'inputText', text: result }],
+            success: !isError,
+          }
+        },
         onChunk: (chunk) => onEvent({ type: 'text_delta', text: chunk }),
+        finalInstruction: 'Use the available tools when a request requires inspecting or changing the presentation. After any necessary tool calls, respond concisely with what you did.',
       })
 
       onEvent({ type: 'done' })

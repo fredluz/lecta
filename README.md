@@ -26,7 +26,7 @@ Lecta puts slides and executable code side by side — no more switching between
 
 ### AI (7 Providers, 20+ Models)
 - **Anthropic** — Claude Sonnet 4, Opus 4, Haiku 4
-- **OpenAI** — GPT-4o, GPT-4o Mini, o3, o3-mini, o4-mini, plus Codex models via ChatGPT sign-in
+- **OpenAI** — GPT-5.5, GPT-5.4, GPT-5.4 Mini, GPT-5.3 Codex, GPT-5.3 Codex Spark
 - **Google Gemini** — Gemini 2.5 Pro, 2.5 Flash, 2.0 Flash
 - **Mistral** — Large, Medium, Small
 - **Meta Llama** — Llama 4 Maverick, Scout, Llama 3.3 70B

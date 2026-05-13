@@ -66,14 +66,6 @@ export interface AIModelDef {
   capabilities: ('text' | 'image' | 'code')[]
 }
 
-export const OPENAI_API_MODELS: AIModelDef[] = [
-  { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai', capabilities: ['text', 'code'] },
-  { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openai', capabilities: ['text', 'code'] },
-  { id: 'o3', name: 'o3', provider: 'openai', capabilities: ['text', 'code'] },
-  { id: 'o3-mini', name: 'o3 Mini', provider: 'openai', capabilities: ['text', 'code'] },
-  { id: 'o4-mini', name: 'o4 Mini', provider: 'openai', capabilities: ['text', 'code'] },
-]
-
 export const CODEX_MODELS: AIModelDef[] = [
   { id: 'gpt-5.5', name: 'GPT-5.5', provider: 'openai', capabilities: ['text', 'code', 'image'] },
   { id: 'gpt-5.4', name: 'GPT-5.4', provider: 'openai', capabilities: ['text', 'code', 'image'] },
@@ -81,6 +73,8 @@ export const CODEX_MODELS: AIModelDef[] = [
   { id: 'gpt-5.3-codex', name: 'GPT-5.3 Codex', provider: 'openai', capabilities: ['text', 'code', 'image'] },
   { id: 'gpt-5.3-codex-spark', name: 'GPT-5.3 Codex Spark', provider: 'openai', capabilities: ['text', 'code', 'image'] },
 ]
+
+export const OPENAI_API_MODELS: AIModelDef[] = CODEX_MODELS
 
 export const DEFAULT_CODEX_MODEL = CODEX_MODELS[0].id
 
@@ -179,7 +173,7 @@ export const AI_PROVIDERS: AIProviderDef[] = [
 
 /** Get all models across all providers */
 export function getAllModels(): AIModelDef[] {
-  return [...AI_PROVIDERS.flatMap((p) => p.models), ...CODEX_MODELS]
+  return AI_PROVIDERS.flatMap((p) => p.models)
 }
 
 /** Find provider by model ID */

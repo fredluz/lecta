@@ -1685,8 +1685,7 @@ function HelpPanel({ onBack }: { onBack: () => void }): JSX.Element {
             <div className="space-y-1">
               {[
                 ['Anthropic', 'Claude Sonnet 4, Opus 4, Haiku 4'],
-                ['OpenAI API', 'GPT-4o, GPT-4o Mini, o3, o3-mini, o4-mini'],
-                ['OpenAI via Codex', 'GPT-5.5, GPT-5.4, GPT-5.4 Mini, GPT-5.3 Codex'],
+                ['OpenAI', 'GPT-5.5, GPT-5.4, GPT-5.4 Mini, GPT-5.3 Codex, GPT-5.3 Codex Spark'],
                 ['Google Gemini', 'Gemini 2.5 Pro, 2.5 Flash, 2.0 Flash'],
                 ['Mistral', 'Large, Medium, Small'],
                 ['Meta Llama', 'Llama 4 Maverick, Scout, 3.3 70B'],

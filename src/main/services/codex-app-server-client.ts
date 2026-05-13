@@ -72,6 +72,31 @@ interface CodexItemCompletedNotification {
   }
 }
 
+export interface CodexDynamicToolSpec {
+  namespace?: string
+  name: string
+  description: string
+  inputSchema: unknown
+  deferLoading?: boolean
+}
+
+export interface CodexDynamicToolCall {
+  threadId: string
+  turnId: string
+  callId: string
+  namespace?: string | null
+  tool: string
+  arguments: unknown
+}
+
+export interface CodexDynamicToolResponse {
+  contentItems: Array<
+    | { type: 'inputText'; text: string }
+    | { type: 'inputImage'; imageUrl: string }
+  >
+  success: boolean
+}
+
 type CodexUserInput =
   | { type: 'text'; text: string; text_elements: [] }
   | { type: 'image'; url: string }
@@ -83,6 +108,7 @@ interface CodexImageResult {
 }
 
 type NotificationHandler<T = unknown> = (params: T) => void
+type DynamicToolHandler = (call: CodexDynamicToolCall) => Promise<CodexDynamicToolResponse>
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000
 const TURN_TIMEOUT_MS = 180_000
@@ -94,6 +120,7 @@ export class CodexAppServerClient {
   private startPromise: Promise<void> | null = null
   private pending = new Map<number, PendingRequest<unknown>>()
   private notificationHandlers = new Map<string, Set<NotificationHandler>>()
+  private dynamicToolHandlers = new Map<string, DynamicToolHandler>()
 
   async start(): Promise<void> {
     if (this.proc) return
@@ -167,6 +194,11 @@ export class CodexAppServerClient {
       return
     }
 
+    if (typeof msg.id === 'number' && msg.method) {
+      void this.handleServerRequest(msg.id, msg.method, msg.params)
+      return
+    }
+
     if (typeof msg.id === 'number') {
       const pending = this.pending.get(msg.id)
       if (!pending) return
@@ -187,6 +219,35 @@ export class CodexAppServerClient {
     }
   }
 
+  private async handleServerRequest(id: number, method: string, params: unknown): Promise<void> {
+    try {
+      if (method !== 'item/tool/call') {
+        throw new Error(`Unsupported Codex app-server request: ${method}`)
+      }
+
+      const call = params as CodexDynamicToolCall
+      const handler = this.dynamicToolHandlers.get(call.threadId)
+      if (!handler) {
+        throw new Error(`No dynamic tool handler registered for thread ${call.threadId}`)
+      }
+
+      this.writeResponse(id, await handler(call))
+    } catch (err) {
+      this.writeError(id, err)
+    }
+  }
+
+  private writeResponse(id: number, result: unknown): void {
+    if (!this.proc) return
+    this.proc.stdin.write(`${JSON.stringify({ id, result })}\n`)
+  }
+
+  private writeError(id: number, err: unknown): void {
+    if (!this.proc) return
+    const message = err instanceof Error ? err.message : String(err)
+    this.proc.stdin.write(`${JSON.stringify({ id, error: { code: -32000, message } })}\n`)
+  }
+
   private handleExit(reason = new Error('Codex app-server exited')): void {
     if (!this.proc && !this.stdoutReader && this.pending.size === 0) return
     this.proc = null
@@ -202,6 +263,7 @@ export class CodexAppServerClient {
       pending.reject(reason)
     }
     this.pending.clear()
+    this.dynamicToolHandlers.clear()
   }
 
   onNotification<T = unknown>(method: string, handler: NotificationHandler<T>): () => void {
@@ -271,6 +333,9 @@ export class CodexAppServerClient {
     cwd?: string
     model?: string
     onChunk: (chunk: string) => void
+    dynamicTools?: CodexDynamicToolSpec[]
+    onDynamicToolCall?: DynamicToolHandler
+    finalInstruction?: string | null
   }): Promise<string> {
     await this.start()
     await this.ensureChatGPTAccount()
@@ -283,9 +348,14 @@ export class CodexAppServerClient {
       sandbox: 'read-only',
       experimentalRawEvents: false,
       persistExtendedHistory: false,
+      ...(params.dynamicTools?.length ? { dynamicTools: params.dynamicTools } : {}),
     })
 
     const threadId = threadResult.thread.id
+    if (params.onDynamicToolCall) {
+      this.dynamicToolHandlers.set(threadId, params.onDynamicToolCall)
+    }
+
     let activeTurnId: string | null = null
     let fullText = ''
     let completedText = ''
@@ -333,11 +403,12 @@ export class CodexAppServerClient {
       )
     })
 
-    const prompt = `${params.system}
-
-${params.userMessage}
-
-Output only the requested final content. Do not describe your process.`
+    const finalInstruction = params.finalInstruction === undefined
+      ? 'Output only the requested final content. Do not describe your process.'
+      : params.finalInstruction
+    const prompt = finalInstruction
+      ? `${params.system}\n\n${params.userMessage}\n\n${finalInstruction}`
+      : `${params.system}\n\n${params.userMessage}`
 
     try {
       const turnResult = await this.request<CodexTurnStartResponse>(
@@ -356,6 +427,7 @@ Output only the requested final content. Do not describe your process.`
       await turnCompleted
       return fullText || completedText
     } finally {
+      this.dynamicToolHandlers.delete(threadId)
       offCompleted()
       offDelta()
       offItemCompleted()
