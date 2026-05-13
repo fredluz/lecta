@@ -11,7 +11,6 @@ export const SettingsSchema = z.object({
   openaiAuthMode: z.enum(['apiKey', 'codex']).default('apiKey'),
   openaiApiKey: z.string().default(''),
   codexBinPath: z.string().default(''),
-  codexModel: z.string().default(''),
   geminiApiKey: z.string().default(''),
   mistralApiKey: z.string().default(''),
   llamaApiKey: z.string().default(''),

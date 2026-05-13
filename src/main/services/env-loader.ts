@@ -113,10 +113,6 @@ export async function loadCodexBinPath(): Promise<string | null> {
   return getSettingsValue('codexBinPath')
 }
 
-export async function loadCodexModel(): Promise<string | null> {
-  return getSettingsValue('codexModel')
-}
-
 /**
  * Load the Mistral API key using the fallback chain.
  */

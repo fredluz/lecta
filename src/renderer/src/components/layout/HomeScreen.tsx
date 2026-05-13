@@ -1203,7 +1203,7 @@ function SettingsPanel({ onBack }: { onBack: () => void }): JSX.Element {
                     <p className={`text-[10px] mt-1 ${validating ? 'text-gray-500' : labelColor}`}>
                       {validating ? 'Validating...' : (
                         <>
-                          {isActive && 'Active · '}
+                          {isActive && 'Selected · '}
                           {labelText}
                           {isFromEnv && hasKey && (
                             <span className="text-gray-500 ml-1">

@@ -19,7 +19,6 @@ const DEFAULTS: Record<string, unknown> = {
   openaiAuthMode: 'apiKey',
   openaiApiKey: '',
   codexBinPath: '',
-  codexModel: '',
   geminiApiKey: '',
   mistralApiKey: '',
   llamaApiKey: '',
