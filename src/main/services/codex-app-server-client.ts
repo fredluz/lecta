@@ -122,7 +122,8 @@ export class CodexAppServerClient {
       const line = chunk.toString('utf-8').trim()
       if (line) console.warn(`[codex app-server] ${line}`)
     })
-    child.once('exit', () => this.handleExit())
+    child.once('error', (err) => this.handleExit(new Error(this.formatCodexStartError(err))))
+    child.once('close', () => this.handleExit())
 
     const spawnError = new Promise<never>((_resolve, reject) => {
       child.once('error', (err) => {
@@ -186,14 +187,19 @@ export class CodexAppServerClient {
     }
   }
 
-  private handleExit(): void {
+  private handleExit(reason = new Error('Codex app-server exited')): void {
+    if (!this.proc && !this.stdoutReader && this.pending.size === 0) return
     this.proc = null
-    this.stdoutReader?.close()
+    try {
+      this.stdoutReader?.close()
+    } catch {
+      // readline may already be closed when the child process fails during spawn.
+    }
     this.stdoutReader = null
 
     for (const pending of this.pending.values()) {
       clearTimeout(pending.timer)
-      pending.reject(new Error('Codex app-server exited'))
+      pending.reject(reason)
     }
     this.pending.clear()
   }
