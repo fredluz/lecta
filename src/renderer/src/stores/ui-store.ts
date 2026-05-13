@@ -24,7 +24,10 @@ export interface ProviderStatus {
   id: string
   hasKey: boolean
   status?: 'connected' | 'invalid' | 'not_configured'
-  keySource?: 'env-file' | 'settings' | 'env-var' | null
+  keySource?: 'env-file' | 'settings' | 'env-var' | 'codex' | null
+  authMode?: 'apiKey' | 'codex'
+  accountEmail?: string
+  accountPlan?: string
 }
 
 interface UIState {
