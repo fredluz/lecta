@@ -109,6 +109,7 @@ interface CodexImageResult {
 
 type NotificationHandler<T = unknown> = (params: T) => void
 type DynamicToolHandler = (call: CodexDynamicToolCall) => Promise<CodexDynamicToolResponse>
+type ExitHandler = (reason: Error) => void
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000
 const TURN_TIMEOUT_MS = 180_000
@@ -121,6 +122,7 @@ export class CodexAppServerClient {
   private pending = new Map<number, PendingRequest<unknown>>()
   private notificationHandlers = new Map<string, Set<NotificationHandler>>()
   private dynamicToolHandlers = new Map<string, DynamicToolHandler>()
+  private exitHandlers = new Set<ExitHandler>()
 
   async start(): Promise<void> {
     if (this.proc) return
@@ -249,7 +251,13 @@ export class CodexAppServerClient {
   }
 
   private handleExit(reason = new Error('Codex app-server exited')): void {
-    if (!this.proc && !this.stdoutReader && this.pending.size === 0) return
+    if (
+      !this.proc &&
+      !this.stdoutReader &&
+      this.pending.size === 0 &&
+      this.dynamicToolHandlers.size === 0 &&
+      this.exitHandlers.size === 0
+    ) return
     this.proc = null
     try {
       this.stdoutReader?.close()
@@ -264,6 +272,12 @@ export class CodexAppServerClient {
     }
     this.pending.clear()
     this.dynamicToolHandlers.clear()
+
+    const exitHandlers = [...this.exitHandlers]
+    this.exitHandlers.clear()
+    for (const handler of exitHandlers) {
+      handler(reason)
+    }
   }
 
   onNotification<T = unknown>(method: string, handler: NotificationHandler<T>): () => void {
@@ -274,6 +288,11 @@ export class CodexAppServerClient {
     }
     handlers.add(handler as NotificationHandler)
     return () => handlers?.delete(handler as NotificationHandler)
+  }
+
+  onExit(handler: ExitHandler): () => void {
+    this.exitHandlers.add(handler)
+    return () => this.exitHandlers.delete(handler)
   }
 
   async request<T = unknown>(
@@ -383,7 +402,9 @@ export class CodexAppServerClient {
     )
 
     let offCompleted: () => void = () => {}
+    let offExit: () => void = () => {}
     const turnCompleted = new Promise<void>((resolve, reject) => {
+      offExit = this.onExit(reject)
       offCompleted = this.onNotification<CodexTurnCompletedNotification>(
         'turn/completed',
         (event) => {
@@ -428,6 +449,7 @@ export class CodexAppServerClient {
       return fullText || completedText
     } finally {
       this.dynamicToolHandlers.delete(threadId)
+      offExit()
       offCompleted()
       offDelta()
       offItemCompleted()
@@ -474,7 +496,9 @@ export class CodexAppServerClient {
     )
 
     let offCompleted: () => void = () => {}
+    let offExit: () => void = () => {}
     const turnCompleted = new Promise<void>((resolve, reject) => {
+      offExit = this.onExit(reject)
       offCompleted = this.onNotification<CodexTurnCompletedNotification>(
         'turn/completed',
         (event) => {
@@ -524,6 +548,7 @@ export class CodexAppServerClient {
       }
       return imageResult
     } finally {
+      offExit()
       offCompleted()
       offItemCompleted()
     }
